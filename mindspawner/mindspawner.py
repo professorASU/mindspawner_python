@@ -8,12 +8,14 @@ class MindSpawner:
         self.user_id = user_id
         self.agent_id = agent_id
         self.server_url = 'https://mindspawner-90819a099a6f.herokuapp.com/'
-        # self.server_url = 'http://localhost:3000'
         self.last_data = {
             'input': None,
             'output': None,
             'evaluation': None
         }
+        self.output_flag = 0  # New flag to track how long we waited for fresh output
+        self.wait_for_output = True  # Option to either wait for fresh output or use old output
+        self.received_first_output = False  # Track if the first output has been received
 
         # Event handler for connecting to the server
         @self.sio.event
@@ -28,28 +30,26 @@ class MindSpawner:
         # Event handler for receiving agent response
         @self.sio.on('response')
         def on_response(data):
+            print(f"Received data: {data}")  # Log the full response for debugging
             if data['type'] == 'getOutput':
                 if data['flag'] == 'success':
-                    # Parse the action if it comes as a string
+                    print(f"Successful response: {data}")
                     if isinstance(data['action'], str):
                         try:
                             data['action'] = json.loads(data['action'])  # Deserialize the string action
                         except json.JSONDecodeError as e:
                             print(f"Error parsing action: {e}")
                             data['action'] = None
-
                     self.last_data['output'] = data['action']
+                    self.output_flag = 0  # Reset flag when new output is received
+                    self.received_first_output = True  # Set flag that first output is received
                     print(f"Received action from agent: {data['action']}")
-                elif data['flag'] == 'error':
-                    print(f"Error: {data['action']}")
-                elif data['flag'] == 'systemError':
-                    print(f"System Error: {data['action']}")
-            else:
-                print(f"Unexpected response type: {data['type']}")
+                else:
+                    print(f"Error or system error in response: {data}")
 
     def connect(self):
         """Connects to the MindSpawner server."""
-        self.sio.connect(self.server_url)
+        self.sio.connect(self.server_url, wait_timeout=5)
 
     def disconnect(self):
         """Disconnects from the server."""
@@ -80,6 +80,9 @@ class MindSpawner:
         input_data = convert_to_serializable(input_data)
 
         if self.agent_id:
+            # Reset output to ensure we wait for a fresh response
+            self.last_data['output'] = None
+
             # Convert Python input to a string compatible with Node.js/JavaScript
             converted_input = self.convert_python_input(input_data)
 
@@ -87,15 +90,34 @@ class MindSpawner:
 
             self.sio.emit('agent', {
                 'type': 'getOutput',
-                'input': converted_input,  # Use the converted input
+                'input': converted_input,
                 'auth': {
                     'userId': self.user_id,
                     'agentId': self.agent_id
                 }
             })
 
-            # Wait for the agent's response, but use a specific event instead of waiting indefinitely
-            self.sio.sleep(0.01)  # Sleep for 1 second to allow the response to be processed
+            waited = 0
+
+            # Ensure we wait for the first output, regardless of wait_for_output value
+            while not self.received_first_output:
+                self.sio.sleep(0.01)
+                self.output_flag += 1
+
+            # After the first output, decide based on the wait_for_output setting
+            if self.wait_for_output:
+                # Wait for fresh output for each action request
+                while self.last_data['output'] is None:
+                    self.sio.sleep(0.01)
+                    self.output_flag += 1
+            else:
+                # Skip waiting if not waiting for each fresh output after the first
+                print(f"Using old output after first action")
+
+            # Log how long we waited for new output
+            print(f"Waited {self.output_flag} iterations for new output.")
+
+            # Return only the output, not the flag
             return self.last_data['output']
         else:
             print("[P2A library] Agent ID is not set.")
@@ -133,10 +155,3 @@ class MindSpawner:
             print(f"[P2A library] Sent evaluation: {evaluation_score}")
         else:
             print("[P2A library] Agent ID is not set.")
-
-# Example usage:
-# agent = MindSpawner(user_id='your_user_id')
-# agent.specify_agent(agent_id='your_agent_id')
-# agent.connect()
-# agent.get_agent_action({'x': 1, 'y': 1, 'up': False, 'right': False})
-# agent.send_evaluation(10)
