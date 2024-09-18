@@ -1,3 +1,2 @@
-socketio
-numpy
 python-socketio
+numpy

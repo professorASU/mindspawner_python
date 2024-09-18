@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='mindspawner',
-    version='0.1.0',
+    version='0.1.2',
     description='A Python library to interact with the MindSpawner agent server',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
@@ -11,9 +11,8 @@ setup(
     url='https://github.com/professorASU/mindspawner-python',
     packages=find_packages(),
     install_requires=[
-        'socketio',
-        'numpy',
         'python-socketio',
+        'numpy',
     ],
     classifiers=[
         'Programming Language :: Python :: 3',
