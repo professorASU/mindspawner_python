@@ -7,8 +7,8 @@ class MindSpawner:
         self.sio = socketio.Client()
         self.user_id = user_id
         self.agent_id = agent_id
-        # self.server_url = 'https://prompt2agent-663c7aa22193.herokuapp.com'
-        self.server_url = 'http://localhost:3000'
+        self.server_url = 'https://mindspawner-90819a099a6f.herokuapp.com/'
+        # self.server_url = 'http://localhost:3000'
         self.last_data = {
             'input': None,
             'output': None,
